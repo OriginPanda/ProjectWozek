@@ -19,7 +19,7 @@ print(__doc__)
 # cue onset.
 tmin, tmax = -1.0, 4.0
 event_id = dict(hands=2, feet=3)
-subject = 3 #Numer osoby badanej
+subject = 3  # Numer osoby badanej
 runs = [6, 10, 14]  # motor imagery: hands vs feet
 
 raw_fnames = eegbci.load_data(subject, runs)
