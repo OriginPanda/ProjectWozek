@@ -1,4 +1,4 @@
 # ProjectWozek
 
-Używane pakiety
+###Używane pakiety
 pip3 install mne , numpy , scikit-learn
