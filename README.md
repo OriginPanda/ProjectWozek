@@ -1,2 +1,4 @@
 # ProjectWozek
-Siema
+
+Używane pakiety
+pip3 install mne , numpy , scikit-learn
