@@ -10,7 +10,7 @@ from mne.datasets import eegbci
 from mne.decoding import CSP
 from mne.io import concatenate_raws, read_raw_edf
 
-print(__doc__)
+# print(__doc__)
 
 # #############################################################################
 # # Set parameters and read data
@@ -18,48 +18,63 @@ print(__doc__)
 # avoid classification of evoked responses by using epochs that start 1s after
 # cue onset.
 tmin, tmax = -1.0, 4.0
-event_id = dict(hands=2, feet=3)
-subject = 1  # Numer osoby badanej
-runs = [6, 10, 14]  # motor imagery: hands vs feet
+event_id = dict( rest=2, hands=3, feet=4)
+
+subject = 1  # Numer badania
+runs = [5, 6, 10, 13, 14]  # motor imagery: hands vs feet
+
+
+# czytanie edf
+
+
+# path = ['S001R03.edf', 'S001R05.edf', 'S001R02.edf']  # tablica sciezek do plikow
+# raws = [read_raw_edf(file, preload=True) for file in path]  # czytanie do tablicy raw edf #https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw
+# raw = concatenate_raws(raws, preload=True)  # https://mne.tools/stable/generated/mne.concatenate_raws.html#mne-concatenate-raws
 
 raw_fnames = eegbci.load_data(subject, runs)
+
 raw = concatenate_raws([read_raw_edf(f, preload=True) for f in raw_fnames])
 eegbci.standardize(raw)  # set channel names
-montage = make_standard_montage("standard_1005")
+
+#montage sa odpowiedzialne za informacje o umiesczeniu elektrod na głowie, TODO mozna dodac swoj wlasny
+montage = make_standard_montage("standard_1005")  #https://mne.tools/stable/generated/mne.channels.make_standard_montage.html#mne.channels.make_standard_montage
 raw.set_montage(montage)
 
-# Apply band-pass filter
-raw.filter(7.0, 30.0, fir_design="firwin", skip_by_annotation="edge")
+# filtr pasmowo przepustowy
+raw.filter(7.0, 30.0, fir_design="firwin", skip_by_annotation="edge") #filtr pomija oznaczenie o koncu
 
-events, _ = events_from_annotations(raw, event_id=dict(T1=2, T2=3))
+events, _ = events_from_annotations(raw, event_id=dict(T0=2, T1=3, T2=4))
 
 picks = pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False, exclude="bads")
 
 # Read epochs (train will be done only between 1 and 2s)
 # Testing will be done with a running classifier
-epochs = Epochs(
+
+# mozna wykluczyc zbyt silne sygnaly
+epochs = Epochs(  # https://mne.tools/stable/generated/mne.Epochs.html#mne.Epochs
     raw,
-    events,
-    event_id,
-    tmin,
+    events,  # lista kategori ktore sa w plikach i ich czasy
+    event_id,  # kategorie ktore chcemy sprawdzic
+    tmin,  # czasy epoki epoki startu i konca dookola eventu
     tmax,
-    proj=True,
-    picks=picks,
-    baseline=None,
+    proj=True,  #usuwanie szumow
+    picks=picks, #kanaly uczestniczace
+    baseline=None,#ewentualna korekcja sygnalu u stala warotsc
     preload=True,
 )
-epochs_train = epochs.copy().crop(tmin=1.0, tmax=2.0)
-labels = epochs.events[:, -1] - 2
+epochs_train = epochs.copy().crop(tmin=1.0, tmax=2.0)  # kopia i ustwienie czasu epok
+labels = epochs.events[:, -1] # przypisanie tabeli klasyfikacji czyli ostatniej kolumny z kazdego rzedu
+
 # Define a monte-carlo cross-validation generator (reduce variance):
 scores = []
 epochs_data = epochs.get_data(copy=False)
 epochs_data_train = epochs_train.get_data(copy=False)
-cv = ShuffleSplit(10, test_size=0.2, random_state=42)
+cv = ShuffleSplit(20, test_size=0.3, random_state=30)  #mozna cos pozmieniac by zyskac lepsze efekty
 cv_split = cv.split(epochs_data_train)
 
 # Assemble a classifier
 lda = LinearDiscriminantAnalysis()
-csp = CSP(n_components=4, reg=None, log=True, norm_trace=False)
+csp = CSP(n_components=6, reg=None, log=True, norm_trace=False)
 
 # Use scikit-learn Pipeline with cross_val_score function
 clf = Pipeline([("CSP", csp), ("LDA", lda)])
@@ -75,7 +90,7 @@ print(
 # plot CSP patterns estimated on full data for visualization
 csp.fit_transform(epochs_data, labels)
 
-csp.plot_patterns(epochs.info, ch_type="eeg", units="Patterns (AU)", size=1.5)
+csp.plot_patterns(epochs.info, ch_type="eeg", units="Patterns (AU)", size=2)
 sfreq = raw.info["sfreq"]
 w_length = int(sfreq * 0.5)  # running classifier: window length
 w_step = int(sfreq * 0.1)  # running classifier: window step size
@@ -111,3 +126,27 @@ plt.ylabel("classification accuracy")
 plt.title("Classification score over time")
 plt.legend(loc="lower right")
 plt.show()
+
+# testowanie
+new_raw = read_raw_edf('S001R09.edf', preload=True)
+new_raw.filter(7.0, 30.0, fir_design="firwin", skip_by_annotation="edge")
+new_events, _ = events_from_annotations(new_raw, event_id=dict(T0=2, T1=3, T2=4))
+new_picks = pick_types(new_raw.info, meg=False, eeg=True, stim=False, eog=False, exclude="bads")
+
+# sfreq = new_raw.info['sfreq']  # sampling frequency
+# t_epoch = 4
+# n_samples = int(t_epoch * sfreq)  # number of samples in each epoch
+
+# new_epochs_data = []
+# for i in range(0, len(new_raw.times), n_samples):
+#     epoch = new_raw[:, i:i+n_samples][0]
+#     new_epochs_data.append(epoch)
+# new_epochs_data = np.array(new_epochs_data)
+
+new_epochs = Epochs(new_raw, new_events, event_id, tmin, tmax, proj=True, picks=new_picks, baseline=None, preload=True)
+new_epochs_data = new_epochs.get_data(copy=True)
+
+new_X = csp.transform(new_epochs_data)
+new_labels_pred = lda.predict(new_X)
+for i, label in enumerate(new_labels_pred):
+    print(f'Epoch {i+1}: {label}')
