@@ -35,14 +35,14 @@ def capture_live_video(camera_index=0):
         while True:
             ret, frame = cap.read()
             img = frame
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # zmiana na bgr
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # zmiana czerwony - niebieski
 
             input_batch = transform(img).to(device)
             with torch.no_grad():
                 prediction = midas(input_batch)
 
                 prediction = torch.nn.functional.interpolate(
-                    prediction.unsqueeze(0),
+                    prediction.unsqueeze(1),
                     size=img.shape[:2],
                     mode="bicubic",
                     align_corners=False,
@@ -52,7 +52,6 @@ def capture_live_video(camera_index=0):
 
             color_map = plt.get_cmap('jet')  # mozna pokolorowac dodatkowo
             colorful_output = color_map(output / output.max())
-
             cv2.imshow("wynik", colorful_output)
 
             # Przerwanie pętli, jeśli naciśnięto klawisz 'q'
