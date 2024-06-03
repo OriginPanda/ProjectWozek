@@ -90,6 +90,17 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
             color_map = plt.get_cmap('jet_r')
             colorful_output = color_map(output / output.max())
 
+            # Wyświetlanie informacji o kierunku na górze ekranu
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 1.2
+            thickness = 3
+            color = (255, 255, 255)  # biały kolor
+            text = f"Skręć {min_region.capitalize()}"
+            text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+            text_x = (colorful_output.shape[1] - text_size[0]) // 2
+            text_y = text_size[1] + 10
+            cv2.putText(colorful_output, text, (text_x, text_y), font, font_scale, color, thickness)
+
             cv2.imshow("Mapa głębokości", colorful_output)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -128,4 +139,5 @@ start_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
 
 # Uruchomienie głównej pętli
 root.mainloop()
+
 
