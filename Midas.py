@@ -62,9 +62,9 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
 
             # Znalezienie regionu z największą średnią wartością głębokości
             region_means = {
-                "lewy": left_mean,
-                "centralny": center_mean,
-                "prawy": right_mean
+                "lewo": left_mean,
+                "centrum": center_mean,
+                "prawo": right_mean
             }
             max_region = max(region_means, key=region_means.get)
             print(f"Region z największą wartością głębokości: {max_region}")
@@ -76,31 +76,20 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
                 print("Średnia wartość w regionie centralnym jest mniejsza niż próg")
                 direction = "do przodu"
             else:
-                if max_region == "lewy":
+                if max_region == "lewo":
                     direction = "w prawo"
-                elif max_region == "prawy":
+                elif max_region == "prawo":
                     direction = "w lewo"
                 else:
                     direction = "do przodu"
             
             # Aktualizacja etykiety kierunku w GUI
-            direction_label.config(text=f"Kierunek: {direction.capitalize()}")
+            direction_label.config(text=f"Kierunek: Skręć {min_region.capitalize()}")
             
             # Wizualizacja mapy głębokości
             color_map = plt.get_cmap('jet_r')
             colorful_output = color_map(output / output.max())
 
-            # Nakładanie średnich wartości na obraz
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.6
-            thickness = 2
-            color = (255, 255, 255)  # biały kolor
-
-            cv2.putText(colorful_output, f'Srednia lewa: {left_mean:.2f}', (10, 30), font, font_scale, color, thickness)
-            cv2.putText(colorful_output, f'Srednia centralna: {center_mean:.2f}', (10, 60), font, font_scale, color, thickness)
-            cv2.putText(colorful_output, f'Srednia prawa: {right_mean:.2f}', (10, 90), font, font_scale, color, thickness)
-            cv2.putText(colorful_output, f'Najwieksza glebokosc: {max_region}', (10, 120), font, font_scale, color, thickness)
-            cv2.putText(colorful_output, f'Najmniejsza glebokosc: {min_region}', (10, 150), font, font_scale, color, thickness)
             cv2.imshow("Mapa głębokości", colorful_output)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -139,3 +128,4 @@ start_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
 
 # Uruchomienie głównej pętli
 root.mainloop()
+
