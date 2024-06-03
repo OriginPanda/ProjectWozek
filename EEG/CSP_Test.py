@@ -1,152 +1,134 @@
-import matplotlib.pyplot as plt
-import numpy as np
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.model_selection import ShuffleSplit, cross_val_score
-from sklearn.pipeline import Pipeline
-
-from mne import Epochs, events_from_annotations, pick_types
-from mne.channels import make_standard_montage
-from mne.datasets import eegbci
+import mne
 from mne.decoding import CSP
-from mne.io import concatenate_raws, read_raw_edf
-
-# print(__doc__)
-
-# #############################################################################
-# # Set parameters and read data
-
-# avoid classification of evoked responses by using epochs that start 1s after
-# cue onset.
-tmin, tmax = -1.0, 4.0
-event_id = dict( rest=2, hands=3, feet=4)
-
-subject = 1  # Numer badania
-runs = [5, 6, 10, 13, 14]  # motor imagery: hands vs feet
+from sklearn.svm import SVC
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import accuracy_score
+import joblib
+import numpy as np
 
 
-# czytanie edf
+# Function to load and preprocess EDF files
+tmin, tmax = -1, 5.1
+filter_param = [13, 18]
+def load_and_preprocess_edf(edf_files):
+    X = []
+    y = []
+    for file in edf_files:
+        raw = mne.io.read_raw_edf(file, preload=True)
+        events, event_id = mne.events_from_annotations(raw)
+        raw = raw.filter(filter_param[0], filter_param[1])
+        epochs = mne.Epochs(raw, events=events, event_id=event_id, tmin=tmin, tmax=tmax, preload=True)
+        print(events)
+        print(epochs.drop_log)
+        X.append(epochs.get_data(copy=False))
+        y.append(epochs.events[:, -1])
+    X = np.concatenate(X)
+    y = np.concatenate(y)
+    return X, y
+def crop_edf(new_edf_file, start_time, end_time):
+    # Load the raw EDF file
+    raw_new = mne.io.read_raw_edf(new_edf_file, preload=True)
+
+    # Crop the raw data to the specified time range
+    raw_new.crop(tmin=start_time, tmax=end_time)
+
+    return raw_new
+def predict_from_new_edf(new_edf_file, start_time, end_time):
+    clf_loaded = joblib.load('classifier_model.pkl')
+
+    # Crop the raw EDF file
+    raw_new = crop_edf(new_edf_file, start_time, end_time)
+
+    # Preprocess the cropped EDF file
+    raw_new = raw_new.filter(filter_param[0], filter_param[1])
+
+    events_new, event_id_new = mne.events_from_annotations(raw_new)
+    epochs_new = mne.Epochs(raw_new, events=events_new, event_id=event_id_new, tmin=tmin, tmax=tmax, preload=True)
+    X_new = epochs_new.get_data(copy=False)
+
+    # Predict labels
+    y_pred_new = clf_loaded.predict(X_new)
+    y_test_new = epochs_new.events[:, -1]
+    accuracy = accuracy_score(y_test_new, y_pred_new)
+    print("Accuracy on test set:", accuracy)
+
+    return y_pred_new
+
+def predict_from_new_edf_new(new_edf_file):
+    clf_loaded = joblib.load('classifier_model.pkl')
+    # Load and preprocess the new EDF file
+    raw_new = mne.io.read_raw_edf(new_edf_file, preload=True)
+    raw_new = raw_new.filter(filter_param[0], filter_param[1])
+
+    # Create fixed length epochs
+    epochs_new = mne.make_fixed_length_epochs(raw_new, duration=1.0, preload=True)
+    X_new = epochs_new.get_data(copy=False)
+
+    # Predict labels
+    y_pred_new = clf_loaded.predict(X_new)
+    print("Predicted labels:", y_pred_new)
+
+    return y_pred_new
 
 
-# path = ['S001R03.edf', 'S001R05.edf', 'S001R02.edf']  # tablica sciezek do plikow
-# raws = [read_raw_edf(file, preload=True) for file in path]  # czytanie do tablicy raw edf #https://mne.tools/stable/generated/mne.io.Raw.html#mne.io.Raw
-# raw = concatenate_raws(raws, preload=True)  # https://mne.tools/stable/generated/mne.concatenate_raws.html#mne-concatenate-raws
 
-raw_fnames = eegbci.load_data(subject, runs)
 
-raw = concatenate_raws([read_raw_edf(f, preload=True) for f in raw_fnames])
-eegbci.standardize(raw)  # set channel names
+if __name__ == "__main__":
+    edf_files = [
+        #'S001R09.edf', 'S001R05.edf', 'S001R06.edf', 'S001R10.edf', 'S001R13.edf', 'S001R14.edf',]
+     'S002R09.edf', 'S002R05.edf', 'S002R06.edf', 'S002R10.edf', 'S002R13.edf', 'S002R14.edf',]
+    # 'S003R09.edf', 'S003R05.edf', 'S003R06.edf', 'S003R10.edf', 'S003R13.edf', 'S003R14.edf',]
+    # 'S004R09.edf', 'S004R05.edf', 'S004R06.edf', 'S004R10.edf', 'S004R13.edf', 'S004R14.edf']
+    # ]  # Add more files as needed
+    results=[]
+    # for i in range(2, 10, 2):
+    #     for j in range(5, 28, i):
 
-#montage sa odpowiedzialne za informacje o umiesczeniu elektrod na głowie, TODO mozna dodac swoj wlasny
-montage = make_standard_montage("standard_1005")  #https://mne.tools/stable/generated/mne.channels.make_standard_montage.html#mne.channels.make_standard_montage
-raw.set_montage(montage)
+    X, y = load_and_preprocess_edf(edf_files)
 
-# filtr pasmowo przepustowy
-raw.filter(7.0, 30.0, fir_design="firwin", skip_by_annotation="edge") #filtr pomija oznaczenie o koncu
+    # Define CSP parameters
+    n_components = 5  # Number of components to keep
+    # Apply CSP filtering
+    csp = CSP(n_components=n_components, reg=None, log=True, norm_trace=False)
 
-events, _ = events_from_annotations(raw, event_id=dict(T0=2, T1=3, T2=4))
+    # Define the classifier
+    clf = make_pipeline(csp, StandardScaler(), SVC(kernel='linear'))  # linear, rbf, poly
 
-picks = pick_types(raw.info, meg=False, eeg=True, stim=False, eog=False, exclude="bads")
+    # Split data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=40)
 
-# Read epochs (train will be done only between 1 and 2s)
-# Testing will be done with a running classifier
+    # Train the classifier
+    clf.fit(X_train, y_train)
 
-# mozna wykluczyc zbyt silne sygnaly
-epochs = Epochs(  # https://mne.tools/stable/generated/mne.Epochs.html#mne.Epochs
-    raw,
-    events,  # lista kategori ktore sa w plikach i ich czasy
-    event_id,  # kategorie ktore chcemy sprawdzic
-    tmin,  # czasy epoki epoki startu i konca dookola eventu
-    tmax,
-    proj=True,  #usuwanie szumow
-    picks=picks, #kanaly uczestniczace
-    baseline=None,#ewentualna korekcja sygnalu u stala warotsc
-    preload=True,
-)
-epochs_train = epochs.copy().crop(tmin=1.0, tmax=2.0)  # kopia i ustwienie czasu epok
-labels = epochs.events[:, -1] # przypisanie tabeli klasyfikacji czyli ostatniej kolumny z kazdego rzedu
+    # Evaluate accuracy on the test set
+    accuracy = accuracy_score(y_test, clf.predict(X_test))
+    print("Accuracy on test set:", accuracy)
 
-# Define a monte-carlo cross-validation generator (reduce variance):
-scores = []
-epochs_data = epochs.get_data(copy=False)
-epochs_data_train = epochs_train.get_data(copy=False)
-cv = ShuffleSplit(20, test_size=0.3, random_state=30)  #mozna cos pozmieniac by zyskac lepsze efekty
-cv_split = cv.split(epochs_data_train)
+    # # Perform cross-validation on the entire dataset
+    # cv_scores = cross_val_score(clf, X, y, cv=5)
+    # print("Cross-validation scores:", cv_scores)
+    # print("Mean cross-validation accuracy:", np.mean(cv_scores))
+    # results.append(np.mean(cv_scores))
 
-# Assemble a classifier
-lda = LinearDiscriminantAnalysis()
-csp = CSP(n_components=6, reg=None, log=True, norm_trace=False)
 
-# Use scikit-learn Pipeline with cross_val_score function
-clf = Pipeline([("CSP", csp), ("LDA", lda)])
-scores = cross_val_score(clf, epochs_data_train, labels, cv=cv, n_jobs=None)
 
-# Printing the results
-class_balance = np.mean(labels == labels[0])
-class_balance = max(class_balance, 1.0 - class_balance)
-print(
-    "Classification accuracy: %f / Chance level: %f" % (np.mean(scores), class_balance)
-)
+    # Save the trained classifier
+    joblib.dump(clf, 'classifier_model.pkl')
 
-# plot CSP patterns estimated on full data for visualization
-csp.fit_transform(epochs_data, labels)
+    # Load the trained classifier
+    clf_loaded = joblib.load('classifier_model.pkl')
 
-csp.plot_patterns(epochs.info, ch_type="eeg", units="Patterns (AU)", size=2)
-sfreq = raw.info["sfreq"]
-w_length = int(sfreq * 0.5)  # running classifier: window length
-w_step = int(sfreq * 0.1)  # running classifier: window step size
-w_start = np.arange(0, epochs_data.shape[2] - w_length, w_step)
+    # Use the loaded classifier for prediction
+    y_pred = clf_loaded.predict(X_test)
 
-scores_windows = []
+    print(y_pred)
+    print(results)
+    # Example usage
+    new_edf_file = 'S002R09.edf'
+    predicted_labels = predict_from_new_edf(new_edf_file)
+    print("Predicted labels from the new EDF file:", predicted_labels)
 
-for train_idx, test_idx in cv_split:
-    y_train, y_test = labels[train_idx], labels[test_idx]
 
-    X_train = csp.fit_transform(epochs_data_train[train_idx], y_train)
-    X_test = csp.transform(epochs_data_train[test_idx])
 
-    # fit classifier
-    lda.fit(X_train, y_train)
-
-    # running classifier: test classifier on sliding window
-    score_this_window = []
-    for n in w_start:
-        X_test = csp.transform(epochs_data[test_idx][:, :, n: (n + w_length)])
-        score_this_window.append(lda.score(X_test, y_test))
-    scores_windows.append(score_this_window)
-
-# Plot scores over time
-w_times = (w_start + w_length / 2.0) / sfreq + epochs.tmin
-
-plt.figure()
-plt.plot(w_times, np.mean(scores_windows, 0), label="Score")
-plt.axvline(0, linestyle="--", color="k", label="Onset")
-plt.axhline(0.5, linestyle="-", color="k", label="Chance")
-plt.xlabel("time (s)")
-plt.ylabel("classification accuracy")
-plt.title("Classification score over time")
-plt.legend(loc="lower right")
-plt.show()
-
-# testowanie
-new_raw = read_raw_edf('S001R09.edf', preload=True)
-new_raw.filter(7.0, 30.0, fir_design="firwin", skip_by_annotation="edge")
-new_events, _ = events_from_annotations(new_raw, event_id=dict(T0=2, T1=3, T2=4))
-new_picks = pick_types(new_raw.info, meg=False, eeg=True, stim=False, eog=False, exclude="bads")
-
-# sfreq = new_raw.info['sfreq']  # sampling frequency
-# t_epoch = 4
-# n_samples = int(t_epoch * sfreq)  # number of samples in each epoch
-
-# new_epochs_data = []
-# for i in range(0, len(new_raw.times), n_samples):
-#     epoch = new_raw[:, i:i+n_samples][0]
-#     new_epochs_data.append(epoch)
-# new_epochs_data = np.array(new_epochs_data)
-
-new_epochs = Epochs(new_raw, new_events, event_id, tmin, tmax, proj=True, picks=new_picks, baseline=None, preload=True)
-new_epochs_data = new_epochs.get_data(copy=True)
-
-new_X = csp.transform(new_epochs_data)
-new_labels_pred = lda.predict(new_X)
-for i, label in enumerate(new_labels_pred):
-    print(f'Epoch {i+1}: {label}')
