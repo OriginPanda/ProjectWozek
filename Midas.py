@@ -73,18 +73,16 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
 
             # Sprawdzenie, czy średnia wartość w centralnym regionie jest mniejsza niż określony próg
             if center_mean < center_mean_threshold:
-                print("Średnia wartość w regionie centralnym jest mniejsza niż próg")
-                direction = "do przodu"
-            else:
-                if max_region == "lewo":
-                    direction = "w prawo"
-                elif max_region == "prawo":
+                print("Przeszkoda w centralnym regionie.")
+                if left_mean > right_mean:
                     direction = "w lewo"
                 else:
-                    direction = "do przodu"
+                    direction = "w prawo"
+            else:
+                direction = "do przodu"
             
             # Aktualizacja etykiety kierunku w GUI
-            direction_label.config(text=f"Kierunek: Skręć {min_region.capitalize()}")
+            direction_label.config(text=f"Kierunek: Skręć {direction.capitalize()}")
             
             # Wizualizacja mapy głębokości
             color_map = plt.get_cmap('jet_r')
@@ -95,7 +93,7 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
             font_scale = 1.2
             thickness = 3
             color = (255, 255, 255)  # biały kolor
-            text = f"Skręć {min_region.capitalize()}"
+            text = f"Skręć {direction.capitalize()}"
             text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
             text_x = (colorful_output.shape[1] - text_size[0]) // 2
             text_y = text_size[1] + 10
@@ -139,5 +137,3 @@ start_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
 
 # Uruchomienie głównej pętli
 root.mainloop()
-
-
