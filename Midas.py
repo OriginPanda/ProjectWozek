@@ -26,7 +26,7 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
     cap = cv2.VideoCapture(camera_index)
 
     if not cap.isOpened():
-        print("Błąd: Nie można otworzyć kamery.")
+        print("Blad: Nie mozna otworzyc kamery.")
         return
 
     try:
@@ -51,9 +51,9 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
 
             # Podział obrazu na regiony lewy, centralny i prawy
             height, width = output.shape
-            left_region = output[:, :2 * width // 5]  # 40% szerokości
-            center_region = output[:, 2 * width // 5: 3 * width // 5]  # 20% szerokości
-            right_region = output[:, 3 * width // 5:]  # 40% szerokości
+            left_region = output[:, :2 * width // 5]  # 40% szerokosci
+            center_region = output[:, 2 * width // 5: 3 * width // 5]  # 20% szerokosci
+            right_region = output[:, 3 * width // 5:]  # 40% szerokosci
 
             # Obliczenie średniej wartości głębokości dla każdego regionu
             left_mean = np.mean(left_region)
@@ -66,26 +66,25 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
                 "centrum": center_mean,
                 "prawo": right_mean
             }
-            max_region = max(region_means, key=region_means.get)
-            print(f"Region z największą wartością głębokości: {max_region}")
             min_region = min(region_means, key=region_means.get)
-            print(f"Region z najmniejszą wartością głębokości: {min_region}")
+            print(f"Region z najmniejsza wartoscia glebokosci: {min_region}")
 
             # Sprawdzenie, czy średnia wartość w centralnym regionie jest mniejsza niż określony próg
             if center_mean < center_mean_threshold:
-                print("Średnia wartość w regionie centralnym jest mniejsza niż próg")
-                direction = "do przodu"
-            else:
-                if max_region == "lewo":
-                    direction = "w prawo"
-                elif max_region == "prawo":
-                    direction = "w lewo"
+                print("Przeszkoda w centralnym regionie.")
+                if left_mean > right_mean:
+                    direction = "Prawo"
                 else:
-                    direction = "do przodu"
+                    direction = "Lewo"
+            else:
+                direction = "Do przodu"
             
             # Aktualizacja etykiety kierunku w GUI
-            direction_label.config(text=f"Kierunek: Skręć {min_region.capitalize()}")
-            
+            if direction == "Do przodu":
+                direction_label.config(text=f"Kierunek: {direction}")
+            else:
+                direction_label.config(text=f"Kierunek: Skret {direction}")
+
             # Wizualizacja mapy głębokości
             color_map = plt.get_cmap('jet_r')
             colorful_output = color_map(output / output.max())
@@ -94,14 +93,15 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
             font = cv2.FONT_HERSHEY_SIMPLEX
             font_scale = 1.2
             thickness = 3
-            color = (255, 255, 255)  # biały kolor
-            text = f"Skręć {min_region.capitalize()}"
-            text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
-            text_x = (colorful_output.shape[1] - text_size[0]) // 2
-            text_y = text_size[1] + 10
-            cv2.putText(colorful_output, text, (text_x, text_y), font, font_scale, color, thickness)
+            color = (255, 255, 255)  # bialy kolor
+            if direction != "Do przodu":
+                text = f"Skret {direction}"
+                text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
+                text_x = (colorful_output.shape[1] - text_size[0]) // 2
+                text_y = text_size[1] + 10
+                cv2.putText(colorful_output, text, (text_x, text_y), font, font_scale, color, thickness)
 
-            cv2.imshow("Mapa głębokości", colorful_output)
+            cv2.imshow("Mapa glebokosci", colorful_output)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -116,18 +116,18 @@ def start_video_capture():
 
 # Tworzenie głównego okna
 root = tk.Tk()
-root.title("Interfejs sterowania wózkiem")
+root.title("Interfejs sterowania wozkiem")
 
 # Tworzenie i umieszczanie etykiet i pól tekstowych
 tk.Label(root, text="Indeks kamery:").grid(row=0, column=0, padx=5, pady=5)
 camera_index_entry = tk.Entry(root)
 camera_index_entry.grid(row=0, column=1, padx=5, pady=5)
-camera_index_entry.insert(0, "0")  # Domyślny indeks kamery
+camera_index_entry.insert(0, "0")  # Domyslny indeks kamery
 
-tk.Label(root, text="Próg średniej centralnej:").grid(row=1, column=0, padx=5, pady=5)
+tk.Label(root, text="Prog sredniej centralnej:").grid(row=1, column=0, padx=5, pady=5)
 center_mean_threshold_entry = tk.Entry(root)
 center_mean_threshold_entry.grid(row=1, column=1, padx=5, pady=5)
-center_mean_threshold_entry.insert(0, str(default_th))  # Domyślny próg wartości
+center_mean_threshold_entry.insert(0, str(default_th))  # Domyslny prog wartosci
 
 # Tworzenie i umieszczanie etykiety kierunku
 direction_label = tk.Label(root, text="Kierunek: ")
@@ -139,3 +139,4 @@ start_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
 
 # Uruchomienie głównej pętli
 root.mainloop()
+
