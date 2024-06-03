@@ -22,6 +22,20 @@ else:
 
 default_th = 400
 
+def get_depth_means(output):
+    # Podział obrazu na regiony lewy, centralny i prawy
+    height, width = output.shape
+    left_region = output[:, :2 * width // 5]  # 40% szerokości
+    center_region = output[:, 2 * width // 5: 3 * width // 5]  # 20% szerokości
+    right_region = output[:, 3 * width // 5:]  # 40% szerokości
+
+    # Obliczenie średniej wartości głębokości dla każdego regionu
+    left_mean = np.mean(left_region)
+    center_mean = np.mean(center_region)
+    right_mean = np.mean(right_region)
+
+    return left_mean, center_mean, right_mean
+
 def capture_live_video(camera_index=0, center_mean_threshold=default_th):
     cap = cv2.VideoCapture(camera_index)
 
@@ -49,16 +63,8 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
 
             output = prediction.cpu().numpy()
 
-            # Podział obrazu na regiony lewy, centralny i prawy
-            height, width = output.shape
-            left_region = output[:, :2 * width // 5]  # 40% szerokosci
-            center_region = output[:, 2 * width // 5: 3 * width // 5]  # 20% szerokosci
-            right_region = output[:, 3 * width // 5:]  # 40% szerokosci
-
-            # Obliczenie średniej wartości głębokości dla każdego regionu
-            left_mean = np.mean(left_region)
-            center_mean = np.mean(center_region)
-            right_mean = np.mean(right_region)
+            # Uzyskanie średnich wartości głębokości
+            left_mean, center_mean, right_mean = get_depth_means(output)
 
             # Znalezienie regionu z największą średnią wartością głębokości
             region_means = {
@@ -66,13 +72,13 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
                 "centrum": center_mean,
                 "prawo": right_mean
             }
-            min_region = min(region_means, key=region_means.get)
-            print(f"Region z najmniejsza wartoscia glebokosci: {min_region}")
+            max_region = max(region_means, key=region_means.get)
+            print(f"Region z największa wartoscia glebokosci: {max_region}")
 
-            # Sprawdzenie, czy średnia wartość w centralnym regionie jest mniejsza niż określony próg
-            if center_mean < center_mean_threshold:
+            # Logika decyzyjna w oparciu o wartości głębokości
+            if center_mean > left_mean and center_mean > right_mean:
                 print("Przeszkoda w centralnym regionie.")
-                if left_mean > right_mean:
+                if left_mean > center_mean_threshold:
                     direction = "Prawo"
                 else:
                     direction = "Lewo"
@@ -93,7 +99,7 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
             font = cv2.FONT_HERSHEY_SIMPLEX
             font_scale = 1.2
             thickness = 3
-            color = (255, 255, 255)  # bialy kolor
+            color = (255, 255, 255)  # biały kolor
             if direction != "Do przodu":
                 text = f"Skret {direction}"
                 text_size = cv2.getTextSize(text, font, font_scale, thickness)[0]
@@ -139,4 +145,3 @@ start_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
 
 # Uruchomienie głównej pętli
 root.mainloop()
-
