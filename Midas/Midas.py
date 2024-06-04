@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import ttk
+from EEG.predict import prediction
 
 # model_type = "DPT_Large"     # MiDaS v3 - Large     (highest accuracy, slowest inference speed)
 # model_type = "DPT_Hybrid"   # MiDaS v3 - Hybrid    (medium accuracy, medium inference speed)
@@ -21,10 +22,14 @@ else:
     transform = midas_transforms.small_transform
 
 default_th = 400;
-
+prediction_label = 0
 def capture_live_video(camera_index=0, center_mean_threshold=default_th):
+    left = 0
+    center = 0
+    right = 0
+    
     cap = cv2.VideoCapture(camera_index)
-
+ 
     if not cap.isOpened():
         print("Error: Cannot open the camera.")
         return
@@ -72,9 +77,10 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
             print(f"Least depth value region: {min_region}")
             # Check if center mean is less than the specified threshold
             if center_mean < center_mean_threshold:
-                print("Center mean is less than the threshold")
+                
+                print("free ahead")
                 # Perform some action here if needed
-
+        
             # Visualize the depth map
             color_map = plt.get_cmap('jet_r')
             colorful_output = color_map(output / output.max())
@@ -97,7 +103,17 @@ def capture_live_video(camera_index=0, center_mean_threshold=default_th):
     finally:
         cap.release()
         cv2.destroyAllWindows()
+        
+    return left , center ,right
 
+def EEGloopSIM(hop):
+    prediction_label = prediction(hop,hop+4.5)
+    
+    print('EEGTEST: ' + prediction_label)
+    
+    root.after(5000, EEGloopSIM(hop+4.5))
+    
+    
 def start_video_capture():
     camera_index = int(camera_index_entry.get())
     center_mean_threshold = int(center_mean_threshold_entry.get())
@@ -122,5 +138,6 @@ center_mean_threshold_entry.insert(0, str(default_th))  # Default threshold valu
 start_button = tk.Button(root, text="Start", command=start_video_capture)
 start_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
 
+root.after(0,EEGloopSIM())
 # Run the main loop
 root.mainloop()
