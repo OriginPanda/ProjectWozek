@@ -9,13 +9,27 @@ import joblib
 import numpy as np
 import re
 import os
-
-
-
 # Function to load and preprocess EDF files
-tmin, tmax = -1, 4.1
-filter_param = [7, 20]
-def load_and_preprocess_edf(edf_files):
+tmin, tmax = -1, 5
+filter_param = [8, 25]
+def load_and_preprocess_edf_both(edf_files):
+    X = []
+    y = []
+
+    for file in edf_files:
+        raw = mne.io.read_raw_edf(file, preload=True)
+        events, event_id = mne.events_from_annotations(raw)
+        raw = raw.filter(filter_param[0], filter_param[1],fir_design="firwin", skip_by_annotation="edge")
+        epochs = mne.Epochs(raw, events=events, event_id=event_id, tmin=tmin, tmax=tmax, preload=True)
+        print(events)
+        print(epochs.drop_log)
+        X.append(epochs.get_data(copy=False))
+        y.append(epochs.events[:, -1])
+        print(y)
+    X = np.concatenate(X)
+    y = np.concatenate(y)
+    return X, y
+def load_and_preprocess_edf_hands(edf_files):
     X = []
     y = []
 
@@ -24,10 +38,13 @@ def load_and_preprocess_edf(edf_files):
         events, event_id = mne.events_from_annotations(raw)
         raw = raw.filter(filter_param[0], filter_param[1])
         epochs = mne.Epochs(raw, events=events, event_id=event_id, tmin=tmin, tmax=tmax, preload=True)
-        print(events)
-        print(epochs.drop_log)
+        # Modify the event codes
+        epochs.events[:, -1][epochs.events[:, -1] == 2] = 4
+        epochs.events[:, -1][epochs.events[:, -1] == 3] = 5
         X.append(epochs.get_data(copy=False))
         y.append(epochs.events[:, -1])
+        print(epochs.events)
+        print(y)
     X = np.concatenate(X)
     y = np.concatenate(y)
     return X, y
@@ -60,16 +77,15 @@ def predict_from_new_edf(new_edf_file, start_time, end_time):
 
     return y_pred_new
 
-def predict_from_new_edf_new(new_edf_file):
+def predict_from_new_edf_new(new_edf_file,start_time, end_time):
     clf_loaded = joblib.load('classifier_model.pkl')
     # Load and preprocess the new EDF file
     raw_new = mne.io.read_raw_edf(new_edf_file, preload=True)
-    raw_new = raw_new.filter(filter_param[0], filter_param[1])
-
+    raw_new.crop(tmin=start_time, tmax=end_time)
+    raw_new = raw_new.filter(filter_param[0], filter_param[1], skip_by_annotation ="edge")
     # Create fixed length epochs
-    epochs_new = mne.make_fixed_length_epochs(raw_new, duration=1.0, preload=True)
+    epochs_new = mne.make_fixed_length_epochs(raw_new, duration=5.0, preload=True)
     X_new = epochs_new.get_data(copy=False)
-
     # Predict labels
     y_pred_new = clf_loaded.predict(X_new)
     print("Predicted labels:", y_pred_new)
@@ -93,25 +109,43 @@ def find_edf_files(root_dir, subjects, sessions):
 
     return edf_files
 
-# 3,4,7,8,11,12
-# 5,6,9,10,13,14
-
+# 3,4,7,8,11,12 fists
+# 5,6,9,10,13,14 both
 if __name__ == "__main__":
+    
     
     root_dir = 'EEG/data'  # Adjust this to your root directory
 
     # Define specific subjects and sessions to process
-    specific_subjects = [72]  # Example: Subjects S001, S002, S003
-    specific_sessions = [5,6,9,10,13,14]
-    edf_files = find_edf_files(root_dir, specific_subjects, specific_sessions)
+    specific_subjects = [2]  # 24 , 2 , 35
+    specific_sessions_fists = [3,4,7,8,11,12]
+
+    specific_sessions_both = [5,6,9,10,13,14]
     
     
-    results=[]
-    # for i in range(2, 10, 2):
-    #     for j in range(5, 28, i):
+    edf_files1 = find_edf_files(root_dir, specific_subjects, specific_sessions_fists)
+    edf_files2 = find_edf_files(root_dir, specific_subjects, specific_sessions_both)
+    
+    edf_files_set1 = [
+        'EEG/data/S002R03.edf', 'EEG/data/S002R04.edf', 'EEG/data/S002R07.edf', 'EEG/data/S002R08.edf', 'EEG/data/S002R11.edf', 'EEG/data/S002R12.edf'
+    ]
+    # edf_files_set1 = [
+    #     'EEG/data/S002R03.edf', 'EEG/data/S002R07.edf','EEG/data/S002R11.edf',
+    # ]
+    edf_files_set2 = [
+        'EEG/data/S002R09.edf', 'EEG/data/S002R05.edf', 'EEG/data/S002R06.edf', 'EEG/data/S002R10.edf', 'EEG/data/S002R13.edf', 'EEG/data/S002R14.edf'
+    ]
+    
+    # Load and preprocess the first set of EDF files
+    # X1, y1 = load_and_preprocess_edf_hands(edf_files1)
 
-    X, y = load_and_preprocess_edf(edf_files)
-
+    # Load and preprocess the second set of EDF files
+    X, y = load_and_preprocess_edf_both(edf_files2)
+    
+    # # Combine data from both sets
+    # X = np.concatenate([X1, X2])
+    # y = np.concatenate([y1, y2])
+    # print(y)
     # Define CSP parameters
     n_components = 5  # Number of components to keep
     # Apply CSP filtering
@@ -125,7 +159,6 @@ if __name__ == "__main__":
 
     # Train the classifier
     clf.fit(X_train, y_train)
-
     # Evaluate accuracy on the test set
     accuracy = accuracy_score(y_test, clf.predict(X_test))
     print("Accuracy on test set:", accuracy)
@@ -141,13 +174,10 @@ if __name__ == "__main__":
     y_pred = clf_loaded.predict(X_test)
 
     print(y_pred)
-    print(results)
-    # print("siema")
 
-    # specific_sessions = [5]
-    # new_edf_file = find_edf_files(root_dir, specific_subjects, specific_sessions)[0]
+    # new_edf_file = 'EEG/data/S002R09.edf'
     # predicted_labels = predict_from_new_edf(new_edf_file,0,122)
     # raw = mne.io.read_raw_edf(new_edf_file, preload=True)
     # events, event_id = mne.events_from_annotations(raw)
-    # print(events)
+    # # print(events)
     # print("Predicted labels from the new EDF file:", predicted_labels)
