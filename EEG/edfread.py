@@ -10,7 +10,7 @@ from mne.io import Raw, read_raw_edf
 # Print the parameters
 
 # raw = concatenate_raws(raws,preload=True)
-path = ['S001R09.edf']#tablica sciezek do plikow
+path = ['EEG/data/S002R12.edf']#tablica sciezek do plikow
 
 raws = [read_raw_edf(file, preload=True) for file in path]#czytanie do tablicy raw edf
 raw = concatenate_raws(raws, preload=True)

@@ -7,14 +7,18 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import accuracy_score
 import joblib
 import numpy as np
+import re
+import os
+
 
 
 # Function to load and preprocess EDF files
-tmin, tmax = -1, 5.1
-filter_param = [13, 18]
+tmin, tmax = -1, 4.1
+filter_param = [7, 20]
 def load_and_preprocess_edf(edf_files):
     X = []
     y = []
+
     for file in edf_files:
         raw = mne.io.read_raw_edf(file, preload=True)
         events, event_id = mne.events_from_annotations(raw)
@@ -72,16 +76,36 @@ def predict_from_new_edf_new(new_edf_file):
 
     return y_pred_new
 
+def find_edf_files(root_dir, subjects, sessions):
+    edf_files = []
+    pattern = re.compile(r'S(\d{3})R(\d{2})\.edf')
 
+    for subject in subjects:
+        subject_dir = os.path.join(root_dir, f'S{subject:03d}')
+        if os.path.isdir(subject_dir):
+            for file in os.listdir(subject_dir):
+                if file.endswith('.edf') and not file.endswith('.edf.event'):
+                    match = pattern.match(file)
+                    if match:
+                        _, session = match.groups()
+                        if int(session) in sessions:
+                            edf_files.append(os.path.join(subject_dir, file))
 
+    return edf_files
+
+# 3,4,7,8,11,12
+# 5,6,9,10,13,14
 
 if __name__ == "__main__":
-    edf_files = [
-        #'S001R09.edf', 'S001R05.edf', 'S001R06.edf', 'S001R10.edf', 'S001R13.edf', 'S001R14.edf',]
-     'S002R09.edf', 'S002R05.edf', 'S002R06.edf', 'S002R10.edf', 'S002R13.edf', 'S002R14.edf',]
-    # 'S003R09.edf', 'S003R05.edf', 'S003R06.edf', 'S003R10.edf', 'S003R13.edf', 'S003R14.edf',]
-    # 'S004R09.edf', 'S004R05.edf', 'S004R06.edf', 'S004R10.edf', 'S004R13.edf', 'S004R14.edf']
-    # ]  # Add more files as needed
+    
+    root_dir = 'EEG/data'  # Adjust this to your root directory
+
+    # Define specific subjects and sessions to process
+    specific_subjects = [72]  # Example: Subjects S001, S002, S003
+    specific_sessions = [5,6,9,10,13,14]
+    edf_files = find_edf_files(root_dir, specific_subjects, specific_sessions)
+    
+    
     results=[]
     # for i in range(2, 10, 2):
     #     for j in range(5, 28, i):
@@ -106,13 +130,6 @@ if __name__ == "__main__":
     accuracy = accuracy_score(y_test, clf.predict(X_test))
     print("Accuracy on test set:", accuracy)
 
-    # # Perform cross-validation on the entire dataset
-    # cv_scores = cross_val_score(clf, X, y, cv=5)
-    # print("Cross-validation scores:", cv_scores)
-    # print("Mean cross-validation accuracy:", np.mean(cv_scores))
-    # results.append(np.mean(cv_scores))
-
-
 
     # Save the trained classifier
     joblib.dump(clf, 'classifier_model.pkl')
@@ -125,10 +142,12 @@ if __name__ == "__main__":
 
     print(y_pred)
     print(results)
-    # Example usage
-    new_edf_file = 'S002R09.edf'
-    predicted_labels = predict_from_new_edf(new_edf_file)
-    print("Predicted labels from the new EDF file:", predicted_labels)
+    # print("siema")
 
-
-
+    # specific_sessions = [5]
+    # new_edf_file = find_edf_files(root_dir, specific_subjects, specific_sessions)[0]
+    # predicted_labels = predict_from_new_edf(new_edf_file,0,122)
+    # raw = mne.io.read_raw_edf(new_edf_file, preload=True)
+    # events, event_id = mne.events_from_annotations(raw)
+    # print(events)
+    # print("Predicted labels from the new EDF file:", predicted_labels)
